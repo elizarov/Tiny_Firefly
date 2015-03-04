@@ -37,15 +37,20 @@ const uint8_t LED_PLUS_BIT = 4;
 EMPTY_INTERRUPT(WDT_vect);
 EMPTY_INTERRUPT(INT0_vect);
 
-inline __attribute__((always_inline)) void wdSleep(uint8_t wdto) {
-	WDTCR |= _BV(WDCE) | _BV(WDE); // enable the WDT Change Bit
-	WDTCR = _BV(WDTIF) | _BV(WDTIE) |  // enable WDT Interrupt and set timeout
-		(wdto & 7) | (wdto >> 3 << WDP3); // note: bit 3 is separate
+void wdSleepImpl(uint8_t wdtcr) {
+	WDTCR |= _BV(WDCE); // enable the WDT Change Bit
+	WDTCR = wdtcr; 
 	wdt_reset(); // start counting with new timeout setting
-	WDTCR |= _BV(WDTIF); // now reset interrupt flag again after all config / timer reset done
+	WDTCR |= _BV(WDTIF); // now reset interrupt flag [again] after all config / timer reset done
 	sei();
 	sleep_cpu();
 	cli();
+}
+
+inline __attribute__((always_inline)) void wdSleep(uint8_t wdto) {
+	// statically compute WDTCR value to enable WDT Interrupt and set timeout
+	// note: bit 3 is separate
+	wdSleepImpl(_BV(WDTIF) | _BV(WDTIE) | (wdto & 7) | (wdto >> 3 << WDP3));
 }
 
 void blink() {
@@ -53,12 +58,6 @@ void blink() {
 	//wdSleep(WDTO_15MS);
 	_delay_ms(1);
 	PORTB &= ~_BV(LED_PLUS_BIT);
-}
-
-void dblBlink() {
-	blink();
-	wdSleep(WDTO_250MS);
-	blink();
 }
 
 bool night() {
@@ -85,11 +84,14 @@ int main() {
 	DDRB = _BV(LED_MINUS_BIT) | _BV(LED_PLUS_BIT); // both led pins are output
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_enable();
-	dblBlink();
+	blink();
 	// ----------------- loop -----------------
     while (true) {
-		wdSleep(WDTO_8S);
-		if (night())
-			dblBlink();
+		if (!night()) {
+			wdSleep(WDTO_8S);
+			continue;
+		}
+		wdSleep(WDTO_2S);
+		blink();
     }
 }
