@@ -57,6 +57,25 @@ inline __attribute__((always_inline)) void wdSleep(uint8_t wdto) {
 	wdSleepImpl(_BV(WDTIF) | _BV(WDTIE) | (wdto & 7) | (wdto >> 3 << WDP3));
 }
 
+// variable sleep from 1 to 15 seconds
+void wdSleepSecs(uint8_t secs) {
+	if (secs >= 8) {
+		wdSleep(WDTO_8S);
+		secs -= 8;
+	}
+	if (secs >= 4) {
+		wdSleep(WDTO_4S);
+		secs -= 4;
+	}
+	if (secs >= 2) {
+		wdSleep(WDTO_2S);
+		secs -= 2;
+	}
+	if (secs >= 1) {
+		wdSleep(WDTO_1S);
+	}
+}
+
 void blink() {
 	PORTB |= _BV(LED_PLUS_BIT);
 	//wdSleep(WDTO_15MS);
@@ -68,10 +87,8 @@ bool night() {
 	// charge
 	PORTB |= _BV(LED_MINUS_BIT);
 	wdSleep(WDTO_15MS);
-//	MCUCR |= _BV(PUD); // disable pull ups
 	DDRB &= ~_BV(LED_MINUS_BIT);
 	PORTB &= ~_BV(LED_MINUS_BIT);
-//	MCUCR &= ~_BV(PUD); // enable pull ups
 	// wait discharge
 	GIMSK |= _BV(INT0); // enable INT0 (default = when low)
 	wdSleep(WDTO_250MS);
@@ -79,6 +96,38 @@ bool night() {
 	GIMSK &= ~_BV(INT0); // disable INT0
 	// back to output
 	DDRB |= _BV(LED_MINUS_BIT);
+	return result;
+}
+
+// XABC fast random generator
+uint8_t x;
+uint8_t a;
+uint8_t b;
+uint8_t c;
+
+// returns random number from 0 to 255
+uint8_t random() {
+	x++;                 //x is incremented every round and is not affected by any other variable
+	a = (a^c^x);         //note the mix of addition and XOR
+	b = (b+a);           //And the use of very few instructions
+	c = (c+((b>>1)^a));  //the right shift is to ensure that high-order bits from b can affect
+	return c;            //low order bits of other variables
+}
+
+// return random number from 0 to n-1
+// 2 <= n <= 7
+uint8_t rnd(uint8_t n) {
+	uint8_t result;
+	do {
+		result = random();
+		if (n <= 2) {
+			result &= 1;
+		} else if (n <= 4) {
+			result &= 3;
+		} else {
+			result &= 7;
+		}
+	} while (result >= n);
 	return result;
 }
 
@@ -90,14 +139,57 @@ int main() {
 	PORTB = 0xff & ~(_BV(LED_MINUS_BIT) | _BV(LED_PLUS_BIT)); // pull up all other pins to ensure defined level and save power
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_enable();
+	// two fast blinks on power up
+	blink();
+	wdSleep(WDTO_250MS);
 	blink();
 	// ----------------- loop -----------------
     while (true) {
+main_loop:
+		wdSleep(WDTO_8S);
 		if (!night()) {
-			wdSleep(WDTO_8S);
+			x++; // add just a bit of entropy into random while waiting for night
 			continue;
 		}
-		wdSleep(WDTO_2S);
-		blink();
+		// *** night mode ***
+		// 4 fast 1 sec blinks (and no night checks)
+		for (uint8_t i = 0; i < 4; i++) {
+			wdSleep(WDTO_1S);
+			blink();
+		}
+		// 4 blinks with up to 50% of having 2 secs wait
+		for (uint8_t i = 0; i < 4; i++) {
+			wdSleep(WDTO_1S);
+			if (rnd(8) <= i)
+				wdSleep(WDTO_1S);
+			if (!night())
+				goto main_loop;
+			blink();	
+		}
+		// now random from 1 to 2 secs and increase interval periodically
+		uint8_t a = 1;
+		uint8_t b = 2;
+		uint8_t i = 0;
+		do {
+			// sleep in [a, b] secs interval
+			wdSleepSecs(a + rnd(b - a + 1));
+			if (!night())
+				goto main_loop;
+			blink();
+			// increase a and b periodically
+			// [1,2]-[1,3]-[2,4]-[2,5]-[3,6]-[3,7]-[4,8]-[5,8]-[6,8]-[7,8]-[8,8]
+			i++;
+			if ((i & 3) == 0 && b < 8)
+				b++; 
+			if ((i & 7) == 0)
+				a++;
+		} while (a < 8); // until we are at [8,8] sleep interval
+		// just continue sleeping at 8 seconds without randomness
+		while (true) {
+			wdSleep(WDTO_8S);
+			if (!night())
+				goto main_loop;
+			blink();	
+		}
     }
 }
