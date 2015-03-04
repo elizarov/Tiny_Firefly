@@ -19,7 +19,11 @@
    bit 1: CKSEL1 - 1 \ internal 128KHz 
    bit 0: CKSEL0 - 1 /
    ------------------
-                0x7B   
+                0x7B
+
+   Estimated power consumption on 3V battery per datasheet:
+   ~ 42 uA in active mode 128 KHz oscillator (not taking the LED power into account)
+   ~  4 uA in power down mode with WDT enabled
 
 */
 
@@ -65,10 +69,10 @@ bool night() {
 	// charge
 	PORTB |= _BV(LED_MINUS_BIT);
 	wdSleep(WDTO_15MS);
-	MCUCR |= _BV(PUD); // disable pull ups
+//	MCUCR |= _BV(PUD); // disable pull ups
 	DDRB &= ~_BV(LED_MINUS_BIT);
 	PORTB &= ~_BV(LED_MINUS_BIT);
-	MCUCR &= ~_BV(PUD); // enable pull ups
+//	MCUCR &= ~_BV(PUD); // enable pull ups
 	// wait discharge
 	GIMSK |= _BV(INT0); // enable INT0 (default = when low)
 	wdSleep(WDTO_250MS);
@@ -81,8 +85,10 @@ bool night() {
 
 int main() {
 	// ----------------- setup -----------------
-	PRR = _BV(PRTIM0) | _BV(PRADC); // turn off unused hardware
-	DDRB = _BV(LED_MINUS_BIT) | _BV(LED_PLUS_BIT); // both led pins are output
+	PRR = _BV(PRTIM0) | _BV(PRADC); // turn off Timer0 & ADC
+	ACSR = _BV(ACD); // turn off Analog Comparator
+	DDRB = _BV(LED_MINUS_BIT) | _BV(LED_PLUS_BIT); // both LED pins are output
+	PORTB = 0xff & ~(_BV(LED_MINUS_BIT) | _BV(LED_PLUS_BIT)); // pull up all other pins to ensure defined level and save power
 	set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 	sleep_enable();
 	dblBlink();
