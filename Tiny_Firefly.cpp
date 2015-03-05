@@ -4,7 +4,7 @@
                  +-----------+
          RESET - | 1       8 | - VCC
            PB3 - | 2       7 | - PB2
-  LED(-) - PB4 - | 3       6 | - PB1 - LED(+)
+  LED(+) - PB4 - | 3       6 | - PB1 - LED(-)
            GND - | 4       5 | - PB0
                  +-----------+
 
@@ -99,11 +99,11 @@ bool night() {
 	return result;
 }
 
-// XABC fast random generator
-uint8_t x;
-uint8_t a;
-uint8_t b;
-uint8_t c;
+// XABC fast random generator (with a CAFEBABE seed)
+uint8_t x = 0xCA;
+uint8_t a = 0XFE;
+uint8_t b = 0xBA;
+uint8_t c = 0xBE;
 
 // returns random number from 0 to 255
 uint8_t random() {
@@ -147,10 +147,8 @@ int main() {
     while (true) {
 main_loop:
 		wdSleep(WDTO_8S);
-		if (!night()) {
-			x++; // add just a bit of entropy into random while waiting for night
+		if (!night())
 			continue;
-		}
 		// *** night mode ***
 		// 4 fast 1 sec blinks (and no night checks)
 		for (uint8_t i = 0; i < 4; i++) {
@@ -169,7 +167,7 @@ main_loop:
 		// now random from 1 to 2 secs and increase interval periodically
 		uint8_t a = 1;
 		uint8_t b = 2;
-		uint8_t i = 0;
+		uint8_t k = 0;
 		do {
 			// sleep in [a, b] secs interval
 			wdSleepSecs(a + rnd(b - a + 1));
@@ -177,19 +175,24 @@ main_loop:
 				goto main_loop;
 			blink();
 			// increase a and b periodically
-			// [1,2]-[1,3]-[2,4]-[2,5]-[3,6]-[3,7]-[4,8]-[5,8]-[6,8]-[7,8]-[8,8]
-			i++;
-			if ((i & 3) == 0 && b < 8)
+			//     k =   0     4     8     12    16    20    24    28    32    36    40
+			// [a,b] = [1,2]-[1,3]-[2,4]-[2,5]-[3,6]-[3,7]-[4,8]-[5,8]-[6,8]-[7,8]-[8,8]
+			k++;
+			if ((k & 3) == 0 && b < 8)
 				b++; 
-			if ((i & 7) == 0)
+			if ((k & 7) == 0)
 				a++;
 		} while (a < 8); // until we are at [8,8] sleep interval
-		// just continue sleeping at 8 seconds without randomness
-		while (true) {
+		// just continue sleeping at 8 seconds without randomness for 1 hour = 60 mins = 3600 secs = 450 x 8 sec intervals
+		for (uint16_t i = 0; i < 450; i++) {
 			wdSleep(WDTO_8S);
 			if (!night())
 				goto main_loop;
 			blink();	
 		}
+		// just sleep for the rest of the night
+		do {
+			wdSleep(WDTO_8S);
+		} while (night());
     }
 }
