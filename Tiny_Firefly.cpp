@@ -2,10 +2,10 @@
   Hardware
                    ATtiny13A
                  +-----------+
-         RESET - | 1       8 | - VCC
+         RESET - | 1       8 | - VCC - BAT(+)
            PB3 - | 2       7 | - PB2
   LED(+) - PB4 - | 3       6 | - PB1 - LED(-)
-           GND - | 4       5 | - PB0
+  BAT(-)   GND - | 4       5 | - PB0
                  +-----------+
 
   Configure low fuse to: 
@@ -21,11 +21,23 @@
    ------------------
                 0x7B
 
-   Estimated power consumption on 3V battery per datasheet:
-   ~ 42 uA in active mode 128 KHz oscillator (not taking the LED power into account)
-   ~  4 uA in power down mode with WDT enabled
+   Use 3V CR2032 battery (~200mAh) and ~5m LED. The following LEDs are tested:
+   
+   Model                           V   I
+   -------------------           ---- ----
+   Kingbright L-53SRD-E (red)    1.8V 11mA = 18h of LED on time, with 1ms blinks = ~64M blinks
+   Kingbright L-53SYD (yellow)   2.0V  9mA 
+   Kingbright L-7113GD (green)   2.1V  9mA
+
+   Estimated MCU power consumption on 3V battery per datasheet:
+   ~ 42 uA in active mode 128 KHz oscillator (negligible wrt LED consumption)
+   ~  4 uA in power down mode with WDT enabled = 50000h ~= 5 years
 
 */
+
+#ifndef __AVR_ATtiny13A__
+#error "Must be compiled for AVR ATtiny13A"
+#endif
 
 #define F_CPU 128000L
 
