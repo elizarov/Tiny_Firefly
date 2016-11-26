@@ -10,9 +10,7 @@ Parts and tools
   http://www.mouser.com/ProductDetail/Atmel/ATTINY13A-PU
 
 * LED medium size ~2.0V ~10mA, any vendor, any color, for example:
-  Kingbright L-53SRD-E (red), 
-  Kingbright L-53SYD (yellow), or  
-  Kingbright L-7113GD (green) 
+  Kingbright L-53SRD-E (red), Kingbright L-53SYD (yellow), or Kingbright L-7113GD (green) 
 
 * CR2032 3V coin-cell battery
   https://www.sparkfun.com/products/338
